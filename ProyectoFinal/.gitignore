@@ -1,0 +1,40 @@
+# Datos
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Modelos serializados
+*.pkl
+*.joblib
+*.bin
+*.pt
+*.npy
+*.npz
+
+# Resultados
+results/figures/*
+results/reports/*
+!results/figures/.gitkeep
+!results/reports/.gitkeep
+
+# Entornos
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Sistema
+.DS_Store
+Thumbs.db
