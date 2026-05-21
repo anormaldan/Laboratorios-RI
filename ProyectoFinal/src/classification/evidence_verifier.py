@@ -73,17 +73,27 @@ class EvidenceVerifier:
         return self._model
 
     def _predict_nli(self, claim: str, evidences: Sequence[str]) -> np.ndarray:
-        """Devuelve matriz (n_evidence, 3) con probabilidades [entail, contradict, neutral]."""
+        """Devuelve matriz (n_evidence, 3) con probabilidades [SUPPORTS, REFUTES, NEI].
+
+        El modelo ``cross-encoder/nli-deberta-v3-base`` produce logits con el orden
+        [contradiction, entailment, neutral] (índices 0, 1, 2 del modelo MNLI).
+        Se reordena aquí para que el array devuelto sea siempre
+        [SUPPORTS=entailment, REFUTES=contradiction, NEI=neutral].
+        """
         pairs = [(ev[: self.max_evidence_chars], claim) for ev in evidences]
-        # sentence-transformers CrossEncoder predice logits, aplicamos softmax.
         logits = self.model.predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
+
         # Softmax estable por fila.
         logits = np.asarray(logits, dtype=float)
         if logits.ndim == 1:
             logits = logits[None, :]
         e = np.exp(logits - logits.max(axis=1, keepdims=True))
         probs = e / e.sum(axis=1, keepdims=True)
-        return probs
+
+        # Reordenar: modelo → [contradiction(0), entailment(1), neutral(2)]
+        #            salida  → [SUPPORTS(0)=entailment, REFUTES(0)=contradiction, NEI(2)=neutral]
+        probs_reordered = np.stack([probs[:, 1], probs[:, 0], probs[:, 2]], axis=1)
+        return probs_reordered
 
     def verify(
         self,
@@ -106,7 +116,7 @@ class EvidenceVerifier:
                 per_evidence=[],
             )
 
-        probs = self._predict_nli(claim, evidences)  # cols: [entail, contradict, neutral]
+        probs = self._predict_nli(claim, evidences)  # cols: [SUPPORTS, REFUTES, NEI]
 
         # Score por evidencia, ya mapeado a FEVER
         per_evidence: List[Dict[str, float]] = [

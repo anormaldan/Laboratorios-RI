@@ -19,7 +19,7 @@ from ..preprocessing import clean_text
 def _build_estimator(kind: str):
     if kind == "logreg":
         return LogisticRegression(
-            max_iter=1000, n_jobs=-1, C=4.0, random_state=config.SEED,
+            max_iter=1000, C=4.0, random_state=config.SEED,
         )
     if kind == "nb":
         return MultinomialNB(alpha=0.3)

@@ -55,11 +55,18 @@ def load_fake_real_news(
     df = df[["id", "title", "text", "subject", "label"]]
 
     if sample_size is not None and sample_size < len(df):
-        df = (
-            df.groupby("label", group_keys=False)
-            .apply(lambda g: g.sample(min(len(g), sample_size // 2), random_state=random_state))
-            .reset_index(drop=True)
-        )
+        # Pandas 3.0 fix: groupby().apply() excluye la columna de agrupación
+        # del resultado cuando include_groups=False (nuevo default). Se hace el
+        # muestreo estratificado manualmente para preservar la columna `label`.
+        n_per_class = sample_size // 2
+        frames = [
+            df[df["label"] == lbl].sample(
+                min(len(df[df["label"] == lbl]), n_per_class),
+                random_state=random_state,
+            )
+            for lbl in [0, 1]
+        ]
+        df = pd.concat(frames).reset_index(drop=True)
 
     return df
 

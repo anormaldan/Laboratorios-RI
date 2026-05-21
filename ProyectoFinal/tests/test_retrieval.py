@@ -39,7 +39,12 @@ def test_retriever_scores_are_descending(RetrieverCls):
 
 @pytest.mark.parametrize("RetrieverCls", [TfidfRetriever, BM25Retriever])
 def test_retriever_finds_relevant(RetrieverCls):
-    retriever = RetrieverCls().fit(CORPUS)
+    # min_df=1 necesario: el corpus de prueba tiene 6 docs, con min_df=2 (valor
+    # de producción) los términos exclusivos de un solo documento se descartan
+    # del vocabulario TF-IDF. BM25 no tiene este problema porque opera sobre
+    # tokens directamente.
+    kwargs = {"min_df": 1} if RetrieverCls is TfidfRetriever else {}
+    retriever = RetrieverCls(**kwargs).fit(CORPUS)
     idx, _ = retriever.search("nasa moon water", top_k=1)
     assert idx[0] == 5
 
