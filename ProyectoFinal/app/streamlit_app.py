@@ -5,6 +5,7 @@ Ejecutar:
 """
 from __future__ import annotations
 
+import html as _html
 import sys
 from pathlib import Path
 
@@ -107,60 +108,76 @@ SUGGESTED_QUERIES: dict[str, list[tuple[str, str, str]]] = {
 def render_result(r: SearchResult) -> None:
     color, bg = VERDICT_COLORS[r.verdict]
 
-    # Badge FEVER
+    # --- Escapar todo el contenido dinámico que viene del corpus ----------
+    # Sin esto, apóstrofes, comillas y < > rompen el HTML renderizado.
+    safe_title   = _html.escape(r.title or "(sin título)")
+    safe_snippet = _html.escape(r.snippet or "")
+
+    # Badge FEVER — pre-construido fuera del f-string principal
     fever_badge = ""
     if r.fever_verdict:
         fc, fbg = FEVER_COLORS[r.fever_verdict]
         fever_badge = (
-            f"<span style='background:{fbg}; color:{fc}; padding:2px 8px;"
-            f"border-radius:10px; font-size:0.78em; margin-left:8px; font-weight:600;'>"
+            f"<span style='background:{fbg};color:{fc};padding:2px 8px;"
+            f"border-radius:10px;font-size:0.78em;margin-left:8px;font-weight:600'>"
             f"FEVER: {r.fever_verdict}</span>"
         )
 
-    # Badge ensemble (si activo)
+    # Badge ensemble — pre-construido fuera del f-string principal
     ensemble_badge = ""
     if r.combined_prob_real is not None:
         delta = r.combined_prob_real - r.prob_real
-        sign = "▲" if delta >= 0 else "▼"
+        sign  = "▲" if delta >= 0 else "▼"
         ensemble_badge = (
-            f"<span style='background:#e3f2fd; color:#0d47a1; padding:2px 8px;"
-            f"border-radius:10px; font-size:0.78em; margin-left:6px;'>"
+            f"<span style='background:#e3f2fd;color:#0d47a1;padding:2px 8px;"
+            f"border-radius:10px;font-size:0.78em;margin-left:6px'>"
             f"ensemble {sign}{abs(delta):.2f}</span>"
         )
 
+    # Línea P(real) combinado — pre-construida
+    combined_line = ""
+    if r.combined_prob_real is not None:
+        combined_line = (
+            f"&nbsp;·&nbsp; combinado: <b>{r.combined_prob_real:.2f}</b>"
+        )
+
+    # Bloque de evidencia NLI — pre-construido
+    evidence_block = ""
+    if r.evidence_sentence:
+        safe_ev = _html.escape(r.evidence_sentence)
+        evidence_block = (
+            "<div style='margin-top:6px;font-size:0.8em;color:#666;"
+            "border-top:1px solid #ddd;padding-top:4px'>"
+            f"<b>Evidencia NLI:</b> {safe_ev}</div>"
+        )
+
     # Barra de confianza
-    pct = int(r.confidence * 200)   # [0, 100]
-    bar_color = color
+    pct = min(int(r.confidence * 200), 100)
 
     st.markdown(
-        f"""
-        <div style='border-left:6px solid {color}; background:{bg};
-                    padding:12px 16px; border-radius:6px; margin-bottom:10px;'>
-            <div style='display:flex; justify-content:space-between; align-items:center;'>
-                <strong style='font-size:1.02em;'>[{r.rank}] {r.title or "(sin título)"}</strong>
-                <span style='white-space:nowrap;'>
-                    <span style='color:{color}; font-weight:bold;'>{r.verdict}</span>
+        f"""<div style='border-left:6px solid {color};background:{bg};
+                        padding:12px 16px;border-radius:6px;margin-bottom:10px'>
+            <div style='display:flex;justify-content:space-between;align-items:center'>
+                <strong style='font-size:1.02em'>[{r.rank}] {safe_title}</strong>
+                <span style='white-space:nowrap'>
+                    <span style='color:{color};font-weight:bold'>{r.verdict}</span>
                     {fever_badge}{ensemble_badge}
                 </span>
             </div>
-            <div style='font-size:0.85em; color:#555; margin-top:5px;'>
+            <div style='font-size:0.85em;color:#555;margin-top:5px'>
                 score: <b>{r.score:.3f}</b> &nbsp;·&nbsp;
                 P(real): <b>{r.prob_real:.2f}</b>
-                {"&nbsp;·&nbsp; P(real) combinado: <b>" + f"{r.combined_prob_real:.2f}</b>"
-                  if r.combined_prob_real is not None else ""}
+                {combined_line}
                 &nbsp;·&nbsp; confianza:
-                <span style='display:inline-block; background:#ddd; border-radius:4px;
-                             width:80px; height:8px; vertical-align:middle; margin-left:4px;'>
-                    <span style='display:block; background:{bar_color}; border-radius:4px;
-                                 width:{pct}%; height:8px;'></span>
+                <span style='display:inline-block;background:#ddd;border-radius:4px;
+                             width:80px;height:8px;vertical-align:middle;margin-left:4px'>
+                    <span style='display:block;background:{color};border-radius:4px;
+                                 width:{pct}%;height:8px'></span>
                 </span>
             </div>
-            <div style='margin-top:8px; font-size:0.93em;'>{r.snippet}</div>
-            {"<div style='margin-top:6px; font-size:0.8em; color:#666; border-top:1px solid #ddd; padding-top:4px;'>"
-             "<b>Evidencia usada en NLI:</b> " + (r.evidence_sentence or "") + "</div>"
-             if r.evidence_sentence else ""}
-        </div>
-        """,
+            <div style='margin-top:8px;font-size:0.93em'>{safe_snippet}</div>
+            {evidence_block}
+        </div>""",
         unsafe_allow_html=True,
     )
 
