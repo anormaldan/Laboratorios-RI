@@ -185,8 +185,11 @@ class SearchPipeline:
         df = preprocess_dataframe(df)
 
         # ── Recuperador ────────────────────────────────────────────────
-        retriever: BaseRetriever = _instantiate_retriever(model)
-        retriever.fit(df["clean_text"].tolist())
+        # Usa índice en disco si existe (generado por scripts/warmup.py)
+        # para evitar re-entrenamiento en cada arranque de Streamlit.
+        retriever: BaseRetriever = _load_or_fit_retriever(
+            model, df["clean_text"].tolist(), force_refit
+        )
 
         if use_reranker:
             retriever = RerankedRetriever(
@@ -416,6 +419,57 @@ def _instantiate_retriever(model: str) -> BaseRetriever:
     if model == "semantic":
         return SemanticRetriever()
     raise ValueError(f"Modelo desconocido: {model}. Usa tfidf|bm25|semantic.")
+
+
+def _load_or_fit_retriever(
+    model: str,
+    corpus: list[str],
+    force_refit: bool = False,
+) -> BaseRetriever:
+    """Carga el índice desde disco si existe; si no, entrena y guarda.
+
+    El caché en disco se genera con ``scripts/warmup.py``. Esto hace que
+    el arranque de Streamlit sea prácticamente instantáneo después del warmup.
+    """
+    model = model.lower()
+
+    disk_paths = {
+        "bm25":     config.BM25_INDEX_PATH,
+        "tfidf":    config.TFIDF_INDEX_PATH,
+        "semantic": config.EMBEDDINGS_PATH,
+    }
+    loaders = {
+        "bm25":  BM25Retriever.load,
+        "tfidf": TfidfRetriever.load,
+    }
+
+    path = disk_paths.get(model)
+
+    if model == "semantic":
+        # El SemanticRetriever guarda embeddings como .npy + .meta
+        meta_path = config.EMBEDDINGS_PATH.with_suffix(".meta")
+        if not force_refit and path and path.exists() and meta_path.exists():
+            retriever = SemanticRetriever.load(config.EMBEDDINGS_PATH)
+            return retriever
+        retriever = SemanticRetriever()
+        retriever.fit(corpus)
+        retriever.save(config.EMBEDDINGS_PATH)
+        return retriever
+
+    if path and not force_refit and path.exists():
+        try:
+            retriever = loaders[model](path)
+            return retriever
+        except Exception:
+            pass  # índice corrupto → re-entrenar
+
+    # Sin caché válido: entrenar y guardar
+    retriever = _instantiate_retriever(model)
+    retriever.fit(corpus)
+    if path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        retriever.save(path)
+    return retriever
 
 
 # ---------------------------------------------------------------------------
