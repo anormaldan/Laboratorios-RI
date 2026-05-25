@@ -62,7 +62,28 @@ TEST_SIZE = 0.15
 VAL_SIZE = 0.15
 
 # ---------------------------------------------------------------------------
+# Clasificador Transformer (ALBERT / DistilBERT)
+# Motivación: Azizah et al. (2023) — ALBERT alcanza 87.6 % accuracy y
+# 86.9 % F1 en detección de fake news, superando a BERT y RoBERTa con
+# menor costo computacional (174.5 s/época).
+# ---------------------------------------------------------------------------
+TRANSFORMER_MODEL_NAME = "albert-base-v2"   # Paper 2 winner; también soporta
+                                             # "distilbert-base-uncased" (más rápido)
+TRANSFORMER_CLF_PATH = PROCESSED_DIR / "transformer_clf"
+TRANSFORMER_MAX_LENGTH = 256   # titular + primer párrafo en ~256 tokens
+TRANSFORMER_BATCH_SIZE = 16
+TRANSFORMER_EPOCHS = 3         # 2-3 épocas son suficientes en datos in-domain
+TRANSFORMER_LR = 2e-5          # estándar para fine-tuning BERT-like
+
+# ---------------------------------------------------------------------------
 # Búsqueda
 # ---------------------------------------------------------------------------
 DEFAULT_TOP_K = 10
 HYBRID_ALPHA = 0.5  # combinación BM25 + semántico
+
+# ---------------------------------------------------------------------------
+# Verificación FEVER
+# ---------------------------------------------------------------------------
+FEVER_SENTENCE_N = 3        # nº de oraciones a extraer por evidencia
+FEVER_SENTENCE_CHARS = 700  # longitud máxima de la evidencia recortada
+ENSEMBLE_FEVER_WEIGHT = 0.35  # peso del señal NLI en el veredicto combinado

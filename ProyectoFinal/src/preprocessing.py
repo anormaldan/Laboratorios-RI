@@ -17,13 +17,35 @@ _NON_ALPHA_RE = re.compile(r"[^a-záéíóúñü\s]" if False else r"[^a-z\s]")
 _MULTISPACE_RE = re.compile(r"\s+")
 _DIGIT_RE = re.compile(r"\d+")
 
-# Mejora #9 — Data leakage del Fake/Real News Dataset:
-# las noticias REAL casi todas vienen de Reuters y dejan una firma
-# detectable. Si no se elimina, el clasificador aprende "Reuters" en lugar
-# del estilo del texto (Bozarth & Budak, 2020).
+# Data leakage del Fake/Real News Dataset (Bozarth & Budak, 2020):
+# Las noticias REAL casi todas provienen de agencias (Reuters, AP, AFP) y
+# dejan firmas detectables al inicio del texto. Sin eliminarlas, el
+# clasificador aprende "Reuters" en lugar del contenido real — Sutradhar
+# et al. (Paper 1) documentan que este artefacto infla el accuracy hasta
+# ~20 pp sobre el rendimiento real del modelo.
+#
+# Se eliminan:
+#   · Firmas de agencia: (Reuters), (AP), (AFP), — Reuters, etc.
+#   · Datelines: "WASHINGTON (Reuters) -", "LONDON, Jan 5 (Reuters) -"
+#   · Bylines de artículo: "By John Smith | Reuters"
+#   · URLs de agencias: reuters.com, apnews.com, afp.com
 _LEAK_PATTERNS = re.compile(
-    r"\(reuters\)|—\s*reuters|reuters\.com|reuters\s+\-",
-    re.IGNORECASE,
+    r"""
+    \(reuters\)                   |  # firma estándar
+    \(ap\)                        |  # Associated Press
+    \(afp\)                       |  # Agence France-Presse
+    \(ups\)                       |  # United Press International
+    —\s*reuters                   |  # — Reuters (dateline europeo)
+    -\s*reuters                   |  # - Reuters
+    reuters\s*\.com               |  # dominio
+    apnews\s*\.com                |  # AP News
+    afp\s*\.com                   |  # AFP dominio
+    \bby\s+\w[\w\s]{0,40}reuters\b|  # "By John Doe | Reuters"
+    [A-Z][A-Z ,]+\([Rr]euters\)\s*[-–] |  # "WASHINGTON (Reuters) -"
+    [A-Z][A-Z ,]+\([Aa][Pp]\)\s*[-–]   |  # "NEW YORK (AP) -"
+    [A-Z][A-Z ,]+\([Aa][Ff][Pp]\)\s*[-–] # "PARIS (AFP) -"
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
 
 
